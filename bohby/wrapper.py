@@ -59,6 +59,9 @@ def generate_configspace(parameters):
         attrs = parameters[parameter_name]
         param_type = attrs["type"]
         del attrs["type"]
+        attrs["log"] = False
+        if param_type == list:
+            del attrs["log"]
 
         config_space.add_hyperparameter(types[param_type](
             parameter_name,
