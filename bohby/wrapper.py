@@ -1,3 +1,4 @@
+import os
 from hpbandster.optimizers.bohb import BOHB
 from hpbandster.core.worker import Worker
 import hpbandster.core.nameserver as hpns
@@ -70,7 +71,9 @@ def generate_configspace(parameters):
 
     return config_space
 
-def optimize_hyperparameters(model_class, parameters, train_and_validate_fn, num_iterations, min_budget = 0.01, working_dir = "./bohby/"):
+def optimize_hyperparameters(model_class, parameters, train_and_validate_fn, num_iterations, min_budget = 0.01, working_dir = "./bohby_workspace/"):
+    # Make sure the working directory exists
+    os.makedirs(working_dir, exist_ok = True)
 
     # Generate a configspace from the given parameters
     config_space = generate_configspace(parameters)
