@@ -31,15 +31,8 @@ class WrapWorker(Worker):
         # Instantiate the new model
         model = self.model_class(**config)
 
-        # Choose a portion of data depending on the budget [0, 1]
-        # dataset_size = len(self.train_data)
-        # indices = np.random.choice(dataset_size, size = int(budget * dataset_size), replace = False)
-        # subset = Subset(self.train_data, indices)
-
-        # Train
-        validation_loss = self.train_and_validate_fn(model, budget)
-
-        print("Current loss: {:4.3f}".format(validation_loss))
+        # Train & validate
+        validation_loss = self.train_and_validate_fn(model, budget, **config)
 
         return {
             "loss": validation_loss,
