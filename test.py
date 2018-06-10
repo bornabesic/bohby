@@ -2,8 +2,11 @@
 import sklearn, sklearn.datasets, sklearn.neighbors, sklearn.model_selection, sklearn.metrics
 import numpy as np
 import pickle
+import logging
 
 from bohby import optimize_hyperparameters
+
+logging.basicConfig(level = logging.ERROR, format = "%(asctime)s %(message)s",  datefmt = "%H:%M:%S")
 
 # Create a toy dataset here
 X, y = sklearn.datasets.make_blobs(n_samples = 1024 * 3, centers = 5, random_state = 0)
@@ -18,11 +21,12 @@ X_train, X_val, y_train, y_val = sklearn.model_selection.train_test_split(X_trai
 def train_and_validate(classifier, budget):
 
     n_train_total = y_train.shape[0]
-    indices = np.random.choice(n_train_total, size=int(budget*n_train_total), replace = False)
+    indices = np.random.choice(n_train_total, size=int(budget * n_train_total), replace = False)
     
     classifier.fit(X_train[indices], y_train[indices])
     val_score = sklearn.metrics.accuracy_score(y_val, classifier.predict(X_val))
-    return val_score
+    val_loss = 1 - val_score
+    return val_loss
 
 # Optimize using BOHB
 valid_loss, config = optimize_hyperparameters(
@@ -51,5 +55,5 @@ valid_loss, config = optimize_hyperparameters(
 classifier = sklearn.neighbors.KNeighborsClassifier(**config)
 classifier.fit(X_train, y_train)
 test_acc = sklearn.metrics.accuracy_score(y_test, classifier.predict(X_test))
-print("Test loss: {}".format(1 - test_acc))
 print("Best config {}:".format(config))
+print("Test loss: {}".format(1 - test_acc))
