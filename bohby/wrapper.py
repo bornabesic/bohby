@@ -1,6 +1,7 @@
 from hpbandster.optimizers.bohb import BOHB
 from hpbandster.core.worker import Worker
 import hpbandster.core.nameserver as hpns
+import hpbandster.core.result as hpres
 from hpbandster.core.result import json_result_logger
 import ConfigSpace
 import ConfigSpace.hyperparameters as CSH
@@ -40,20 +41,9 @@ class WrapWorker(Worker):
         print("Current loss: {:4.3f}".format(validation_loss))
 
         return {
-            "loss": 1 - validation_loss,
+            "loss": validation_loss,
             "info": {} # no interesting information to store here
         }
-
-
-    def test_accuracy(self, config, **kwargs):
-        """
-        method for the final test evaluation
-        """
-        # classifier = sklearn.neighbors.KNeighborsClassifier(**config)
-        # classifier.fit(self.X_trn, self.y_trn)
-        # final_score = sklearn.metrics.accuracy_score(self.y_tst, classifier.predict(self.X_tst))
-        # return final_score
-        pass
 
 
 def generate_configspace(parameters):
@@ -61,36 +51,39 @@ def generate_configspace(parameters):
 
     types = {
         int: CSH.UniformIntegerHyperparameter,
-        float: CSH.UniformFloatHyperparameter
+        float: CSH.UniformFloatHyperparameter,
+        list: CSH.CategoricalHyperparameter
     }
 
     for parameter_name in parameters:
         attrs = parameters[parameter_name]
+        param_type = attrs["type"]
+        del attrs["type"]
 
-        config_space.add_hyperparameter(types[attrs["type"]](
+        config_space.add_hyperparameter(types[param_type](
             parameter_name,
-            lower = attrs["lower"],
-            upper = attrs["upper"],
-            log = False
+            **attrs
         ))
 
     return config_space
 
 def optimize_hyperparameters(model_class, parameters, train_and_validate_fn, num_iterations, min_budget = 0.01, working_dir = "./bohby/"):
 
+    # Generate a configspace from the given parameters
     config_space = generate_configspace(parameters)
 
-    # start a nameserver for communication
+    # Start a local nameserver for communication
     NS = hpns.NameServer(run_id = _runid, nic_name = "lo", working_directory = working_dir)
     ns_host, ns_port = NS.start()
 
-    # worker
+    # Define the worker
     worker = WrapWorker(model_class, train_and_validate_fn,  working_directory = working_dir,  nameserver = ns_host, nameserver_port = ns_port, run_id = _runid)
     worker.run(background = True)
  
-    # enable live logging so a run can be canceled at any time and we can still recover the results
+    # Enable live logging so a run can be canceled at any time and we can still recover the results
     result_logger = json_result_logger(directory = working_dir, overwrite = True)
 
+    # Optimization
     bohb = BOHB(configspace = config_space,
 			working_directory = working_dir,
 			run_id = _runid,
@@ -104,7 +97,19 @@ def optimize_hyperparameters(model_class, parameters, train_and_validate_fn, num
 
     res = bohb.run(n_iterations = num_iterations)
 
-    # clean up
-    bohb.shutdown(shutdown_workers=True)
+    # Clean up
+    bohb.shutdown(shutdown_workers = True)
     NS.shutdown()
+
+    # Best found config
+    run_results = hpres.logged_results_to_HB_result(working_dir)
+    id2conf = run_results.get_id2config_mapping()
+
+    incumbent_id = run_results.get_incumbent_id()
+    incumbent_config = id2conf[incumbent_id]['config']
+    incumbent_runs = run_results.get_runs_by_id(incumbent_id)
+
+    val_loss = incumbent_runs[-1].loss
+
+    return val_loss, incumbent_config
  
